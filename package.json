@@ -1,0 +1,12 @@
+{
+  "name": "norsk-nyheter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Siste norske nyheter fra NRK og VG",
+  "scripts": {
+    "dev": "node dev-server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

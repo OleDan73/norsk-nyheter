@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Norske nyheter</title>
+  <style>
+    :root { --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --line: #e7e5e4; --nrk: #0b5cad; --vg: #d4202c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --line: #2e2a27; --nrk: #6aa8ec; --vg: #f2616b; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    h1 { font-size: 1.6rem; margin: 0; }
+    button { font: inherit; font-size: .9rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--muted); }
+    button:disabled { opacity: .5; cursor: wait; }
+    #status { color: var(--muted); font-size: .85rem; margin: 0 0 16px; min-height: 1.2em; }
+    ol { list-style: none; margin: 0; padding: 0; }
+    li { border-top: 1px solid var(--line); padding: 14px 0; }
+    li a { color: var(--fg); text-decoration: none; font-weight: 600; }
+    li a:hover { text-decoration: underline; }
+    .meta { margin-top: 4px; font-size: .8rem; color: var(--muted); }
+    .src { font-weight: 700; margin-right: 6px; }
+    .src.NRK { color: var(--nrk); }
+    .src.VG { color: var(--vg); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Siste nyheter</h1>
+      <button id="refresh" type="button">Oppdater</button>
+    </header>
+    <p id="status">Laster…</p>
+    <ol id="list"></ol>
+  </main>
+  <script>
+    const list = document.getElementById('list');
+    const status = document.getElementById('status');
+    const btn = document.getElementById('refresh');
+    const timeFmt = new Intl.DateTimeFormat('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+    function ago(iso) {
+      const min = Math.round((Date.now() - new Date(iso)) / 60000);
+      if (min < 1) return 'akkurat nå';
+      if (min < 60) return `${min} min siden`;
+      return timeFmt.format(new Date(iso));
+    }
+
+    async function load() {
+      btn.disabled = true;
+      status.textContent = 'Laster…';
+      try {
+        const res = await fetch('/api/news', { cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.status);
+        list.replaceChildren(...data.items.map((item) => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = item.link;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = item.title;
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          const src = document.createElement('span');
+          src.className = `src ${item.source}`;
+          src.textContent = item.source;
+          const time = document.createElement('time');
+          time.dateTime = item.published;
+          time.title = new Date(item.published).toLocaleString('nb-NO');
+          time.textContent = ago(item.published);
+          meta.append(src, time);
+          li.append(a, meta);
+          return li;
+        }));
+        status.textContent = `Hentet ${new Date(data.updated).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}` +
+          (data.errors.length ? ` · Feil: ${data.errors.join(', ')}` : '');
+      } catch (err) {
+        status.textContent = `Kunne ikke hente nyheter: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>
