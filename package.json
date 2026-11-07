@@ -4,7 +4,8 @@
   "private": true,
   "description": "Siste norske nyheter fra NRK og VG",
   "scripts": {
-    "dev": "node dev-server.js"
+    "dev": "node dev-server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"

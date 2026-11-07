@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Norske nyheter</title>
   <style>
-    :root { --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --line: #e7e5e4; --nrk: #0b5cad; --vg: #d4202c; }
+    :root { --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --line: #e7e5e4; --nrk: #0b5cad; --vg: #d4202c; --warn: #a16207; }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --line: #2e2a27; --nrk: #6aa8ec; --vg: #f2616b; }
+      :root { --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --line: #2e2a27; --nrk: #6aa8ec; --vg: #f2616b; --warn: #fbbf24; }
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -18,6 +18,7 @@
     button:hover { border-color: var(--muted); }
     button:disabled { opacity: .5; cursor: wait; }
     #status { color: var(--muted); font-size: .85rem; margin: 0 0 16px; min-height: 1.2em; }
+    #status.warn { color: var(--warn); }
     ol { list-style: none; margin: 0; padding: 0; }
     li { border-top: 1px solid var(--line); padding: 14px 0; }
     li a { color: var(--fg); text-decoration: none; font-weight: 600; }
@@ -41,7 +42,20 @@
     const list = document.getElementById('list');
     const status = document.getElementById('status');
     const btn = document.getElementById('refresh');
-    const timeFmt = new Intl.DateTimeFormat('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    const TZ = 'Europe/Oslo';
+    const timeFmt = new Intl.DateTimeFormat('nb-NO', { timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    const clockFmt = new Intl.DateTimeFormat('nb-NO', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+    const fullFmt = new Intl.DateTimeFormat('nb-NO', { timeZone: TZ, dateStyle: 'short', timeStyle: 'medium' });
+
+    // One status note per source that failed; stale fallbacks say which time they're from.
+    function sourceNotes(data) {
+      if (!data.sources) return data.errors || [];
+      return Object.entries(data.sources)
+        .filter(([, s]) => !s.ok)
+        .map(([name, s]) => s.stale
+          ? `${name}: oppdatering feilet – viser lagrede saker fra kl. ${clockFmt.format(new Date(s.fetchedAt))}`
+          : `${name}: ikke tilgjengelig (${s.error})`);
+    }
 
     function ago(iso) {
       const min = Math.round((Date.now() - new Date(iso)) / 60000);
@@ -52,6 +66,7 @@
 
     async function load() {
       btn.disabled = true;
+      status.classList.remove('warn');
       status.textContent = 'Laster…';
       try {
         const res = await fetch('/api/news', { cache: 'no-store' });
@@ -71,15 +86,18 @@
           src.textContent = item.source;
           const time = document.createElement('time');
           time.dateTime = item.published;
-          time.title = new Date(item.published).toLocaleString('nb-NO');
+          time.title = fullFmt.format(new Date(item.published));
           time.textContent = ago(item.published);
           meta.append(src, time);
           li.append(a, meta);
           return li;
         }));
-        status.textContent = `Hentet ${new Date(data.updated).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}` +
-          (data.errors.length ? ` · Feil: ${data.errors.join(', ')}` : '');
+        const notes = sourceNotes(data);
+        status.classList.toggle('warn', notes.length > 0);
+        status.textContent = `Hentet ${clockFmt.format(new Date(data.updated))}` +
+          (notes.length ? ` · ⚠ ${notes.join(' · ')}` : '');
       } catch (err) {
+        status.classList.add('warn');
         status.textContent = `Kunne ikke hente nyheter: ${err.message}`;
       } finally {
         btn.disabled = false;
